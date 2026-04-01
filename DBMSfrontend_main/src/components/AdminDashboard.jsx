@@ -1,34 +1,51 @@
 import { useEffect, useState } from 'react';
 import {
   adminCreateCourse,
+  adminDeleteCourse,
+  adminDeleteTimetable,
+  adminDeleteUser,
   adminFetchFees,
+  adminFetchCourses,
+  adminFetchTimetable,
   adminFulfillFeeDemand,
   adminCreateProf,
   adminCreateStudent,
   adminCreateTimetable,
   adminGenerateFees,
   adminFetchUsers,
+  adminUpdateCourse,
+  adminUpdateTimetable,
+  adminUpdateUser,
 } from '../api.js';
 
 function AdminDashboard({ onMessage }) {
   const [users, setUsers] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [timetable, setTimetable] = useState([]);
   const [fees, setFees] = useState([]);
   const [form, setForm] = useState({});
+  const [editingUser, setEditingUser] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [editingTimetable, setEditingTimetable] = useState(null);
   const [busy, setBusy] = useState(false);
   const profs = users.filter((user) => user.role === 'prof');
 
   useEffect(() => {
-    loadUsers();
+    loadDashboard();
   }, []);
 
-  async function loadUsers() {
+  async function loadDashboard() {
     try {
-      const [usersData, feesData] = await Promise.all([
+      const [usersData, feesData, coursesData, timetableData] = await Promise.all([
         adminFetchUsers(),
         adminFetchFees(),
+        adminFetchCourses(),
+        adminFetchTimetable(),
       ]);
       setUsers(usersData);
       setFees(feesData);
+      setCourses(coursesData);
+      setTimetable(timetableData);
     } catch (err) {
       onMessage(err.message);
     }
@@ -83,7 +100,7 @@ function AdminDashboard({ onMessage }) {
       }
 
       onMessage(result.message || 'Saved successfully');
-      await loadUsers();
+      await loadDashboard();
       setForm({});
     } catch (err) {
       onMessage(err.message);
@@ -99,7 +116,134 @@ function AdminDashboard({ onMessage }) {
     try {
       const result = await adminFulfillFeeDemand(feeId);
       onMessage(result.message || 'Fee fulfilled');
-      await loadUsers();
+      await loadDashboard();
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteCourse(courseId) {
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const result = await adminDeleteCourse(courseId);
+      onMessage(result.message || 'Course deleted');
+      await loadDashboard();
+      if (editingCourse?._id === courseId) {
+        setEditingCourse(null);
+      }
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteUser(userId) {
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const result = await adminDeleteUser(userId);
+      onMessage(result.message || 'User deleted');
+      await loadDashboard();
+      if (editingUser?._id === userId) {
+        setEditingUser(null);
+      }
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteTimetable(timetableId) {
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const result = await adminDeleteTimetable(timetableId);
+      onMessage(result.message || 'Timetable deleted');
+      await loadDashboard();
+      if (editingTimetable?._id === timetableId) {
+        setEditingTimetable(null);
+      }
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUserUpdate(event) {
+    event.preventDefault();
+    if (!editingUser) return;
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const payload = {
+        first_name: editingUser.first_name,
+        last_name: editingUser.last_name,
+        email: editingUser.email,
+        role: editingUser.role,
+        roll_no: editingUser.role === 'student' ? editingUser.roll_no : undefined,
+        employee_id: editingUser.role === 'prof' ? editingUser.employee_id : undefined,
+      };
+      const result = await adminUpdateUser(editingUser._id, payload);
+      onMessage(result.message || 'User updated');
+      await loadDashboard();
+      setEditingUser(null);
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCourseUpdate(event) {
+    event.preventDefault();
+    if (!editingCourse) return;
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const result = await adminUpdateCourse(editingCourse._id, {
+        course_code: editingCourse.course_code,
+        course_name: editingCourse.course_name,
+        credits: Number(editingCourse.credits),
+        professor: editingCourse.professor,
+      });
+      onMessage(result.message || 'Course updated');
+      await loadDashboard();
+      setEditingCourse(null);
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTimetableUpdate(event) {
+    event.preventDefault();
+    if (!editingTimetable) return;
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const result = await adminUpdateTimetable(editingTimetable._id, {
+        course: editingTimetable.course,
+        day_of_week: editingTimetable.day_of_week,
+        start_time: editingTimetable.start_time,
+        end_time: editingTimetable.end_time,
+        room_no: editingTimetable.room_no,
+      });
+      onMessage(result.message || 'Timetable updated');
+      await loadDashboard();
+      setEditingTimetable(null);
     } catch (err) {
       onMessage(err.message);
     } finally {
@@ -177,7 +321,7 @@ function AdminDashboard({ onMessage }) {
       <div className="card full-width">
         <div className="panel-toolbar">
           <h3>Known users</h3>
-          <button className="btn btn-secondary" onClick={loadUsers}>Reload users</button>
+          <button className="btn btn-secondary" onClick={loadDashboard}>Reload users</button>
         </div>
         {users.length === 0 ? (
           <p>No users loaded yet.</p>
@@ -190,6 +334,7 @@ function AdminDashboard({ onMessage }) {
                 <th>Role</th>
                 <th>Name</th>
                 <th>Reference</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -200,12 +345,204 @@ function AdminDashboard({ onMessage }) {
                   <td>{user.role}</td>
                   <td>{user.first_name} {user.last_name}</td>
                   <td>{user.role === 'student' ? user.roll_no || 'N/A' : user.employee_id || 'N/A'}</td>
+                  <td>
+                    <div className="action-row">
+                      <button type="button" className="btn btn-secondary" onClick={() => setEditingUser({ ...user })}>
+                        Edit
+                      </button>
+                      <button type="button" className="btn btn-danger" disabled={busy} onClick={() => handleDeleteUser(user._id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {editingUser && (
+        <div className="card full-width">
+          <h3>Edit user</h3>
+          <form className="form-stack" onSubmit={handleUserUpdate}>
+            <input value={editingUser.first_name || ''} onChange={(e) => setEditingUser({ ...editingUser, first_name: e.target.value })} required />
+            <input value={editingUser.last_name || ''} onChange={(e) => setEditingUser({ ...editingUser, last_name: e.target.value })} required />
+            <input type="email" value={editingUser.email || ''} onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })} required />
+            <select value={editingUser.role || ''} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })} required>
+              <option value="student">student</option>
+              <option value="prof">prof</option>
+              <option value="admin">admin</option>
+            </select>
+            {editingUser.role === 'student' && (
+              <input value={editingUser.roll_no || ''} onChange={(e) => setEditingUser({ ...editingUser, roll_no: e.target.value, employee_id: undefined })} placeholder="Roll No" />
+            )}
+            {editingUser.role === 'prof' && (
+              <input value={editingUser.employee_id || ''} onChange={(e) => setEditingUser({ ...editingUser, employee_id: e.target.value, roll_no: undefined })} placeholder="Employee ID" />
+            )}
+            <div className="action-row">
+              <button className="btn btn-primary" type="submit" disabled={busy}>Save user</button>
+              <button className="btn btn-secondary" type="button" onClick={() => setEditingUser(null)}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="card full-width">
+        <h3>Courses</h3>
+        {courses.length === 0 ? (
+          <p>No courses found yet.</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Credits</th>
+                <th>Professor</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {courses.map((course) => (
+                <tr key={course._id}>
+                  <td>{course.course_code}</td>
+                  <td>{course.course_name}</td>
+                  <td>{course.credits}</td>
+                  <td>{course.professor ? `${course.professor.first_name} ${course.professor.last_name}` : 'N/A'}</td>
+                  <td>
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setEditingCourse({
+                          _id: course._id,
+                          course_code: course.course_code,
+                          course_name: course.course_name,
+                          credits: course.credits,
+                          professor: course.professor?._id || '',
+                        })}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={busy}
+                        onClick={() => handleDeleteCourse(course._id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {editingCourse && (
+        <div className="card full-width">
+          <h3>Edit course</h3>
+          <form className="form-stack" onSubmit={handleCourseUpdate}>
+            <input value={editingCourse.course_code || ''} onChange={(e) => setEditingCourse({ ...editingCourse, course_code: e.target.value })} required />
+            <input value={editingCourse.course_name || ''} onChange={(e) => setEditingCourse({ ...editingCourse, course_name: e.target.value })} required />
+            <input type="number" min="1" value={editingCourse.credits || ''} onChange={(e) => setEditingCourse({ ...editingCourse, credits: e.target.value })} required />
+            <select value={editingCourse.professor || ''} onChange={(e) => setEditingCourse({ ...editingCourse, professor: e.target.value })} required>
+              <option value="">Select professor</option>
+              {profs.map((prof) => (
+                <option key={prof._id} value={prof._id}>
+                  {prof.first_name} {prof.last_name} ({prof.employee_id || prof.email})
+                </option>
+              ))}
+            </select>
+            <div className="action-row">
+              <button className="btn btn-primary" type="submit" disabled={busy}>Save course</button>
+              <button className="btn btn-secondary" type="button" onClick={() => setEditingCourse(null)}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="card full-width">
+        <h3>Timetable entries</h3>
+        {timetable.length === 0 ? (
+          <p>No timetable entries found yet.</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Day</th>
+                <th>Time</th>
+                <th>Room</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {timetable.map((item) => (
+                <tr key={item._id}>
+                  <td>{item.course?.course_code || 'N/A'}</td>
+                  <td>{item.day_of_week}</td>
+                  <td>{item.start_time} - {item.end_time}</td>
+                  <td>{item.room_no || 'N/A'}</td>
+                  <td>
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setEditingTimetable({
+                          _id: item._id,
+                          course: item.course?._id || '',
+                          day_of_week: item.day_of_week,
+                          start_time: item.start_time,
+                          end_time: item.end_time,
+                          room_no: item.room_no || '',
+                        })}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={busy}
+                        onClick={() => handleDeleteTimetable(item._id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {editingTimetable && (
+        <div className="card full-width">
+          <h3>Edit timetable entry</h3>
+          <form className="form-stack" onSubmit={handleTimetableUpdate}>
+            <select value={editingTimetable.course || ''} onChange={(e) => setEditingTimetable({ ...editingTimetable, course: e.target.value })} required>
+              <option value="">Select course</option>
+              {courses.map((course) => (
+                <option key={course._id} value={course._id}>
+                  {course.course_code} - {course.course_name}
+                </option>
+              ))}
+            </select>
+            <input value={editingTimetable.day_of_week || ''} onChange={(e) => setEditingTimetable({ ...editingTimetable, day_of_week: e.target.value })} required />
+            <input value={editingTimetable.start_time || ''} onChange={(e) => setEditingTimetable({ ...editingTimetable, start_time: e.target.value })} required />
+            <input value={editingTimetable.end_time || ''} onChange={(e) => setEditingTimetable({ ...editingTimetable, end_time: e.target.value })} required />
+            <input value={editingTimetable.room_no || ''} onChange={(e) => setEditingTimetable({ ...editingTimetable, room_no: e.target.value })} />
+            <div className="action-row">
+              <button className="btn btn-primary" type="submit" disabled={busy}>Save timetable</button>
+              <button className="btn btn-secondary" type="button" onClick={() => setEditingTimetable(null)}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="card full-width">
         <h3>Generated fee demands</h3>

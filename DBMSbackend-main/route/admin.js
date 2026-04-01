@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { User, Course, Timetable, Fee } = require("../db/index");
+const { User, Course, Timetable, Fee, TakenCourse, Announcement } = require("../db/index");
 const authenticateJWT = require("../middleware/auth");
 const isAdmin = require("../middleware/admin");
 require("dotenv").config();
@@ -11,6 +11,15 @@ function buildDemandNumber(student, semester, academicYear) {
   const studentRef = student.roll_no || String(student._id).slice(-6).toUpperCase();
   const yearRef = academicYear.replace(/\s+/g, "").toUpperCase();
   return `FEE-${yearRef}-SEM${semester}-${studentRef}`;
+}
+
+async function deleteCourseCascade(courseId) {
+  await Promise.all([
+    TakenCourse.deleteMany({ course: courseId }),
+    Timetable.deleteMany({ course: courseId }),
+    Announcement.deleteMany({ course: courseId }),
+  ]);
+  await Course.findByIdAndDelete(courseId);
 }
 
 router.post("/signup", async (req, res) => {
@@ -130,6 +139,36 @@ router.patch("/users/:id", authenticateJWT, isAdmin, async (req, res) => {
   }
 });
 
+router.delete("/users/:id", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    if (String(req.user.id) === String(req.params.id)) {
+      return res.status(400).json({ message: "Admin cannot delete their own account" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.role === "student") {
+      await Promise.all([
+        TakenCourse.deleteMany({ student: user._id }),
+        Fee.deleteMany({ student: user._id }),
+      ]);
+    }
+
+    if (user.role === "prof") {
+      const courses = await Course.find({ professor: user._id }).select("_id");
+      await Promise.all(courses.map((course) => deleteCourseCascade(course._id)));
+      await Announcement.deleteMany({ professor: user._id });
+    }
+
+    await user.deleteOne();
+
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete user", error: err.message });
+  }
+});
+
 router.post("/courses", authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { course_code, course_name, credits, professor } = req.body;
@@ -159,6 +198,31 @@ router.patch("/courses/:id", authenticateJWT, isAdmin, async (req, res) => {
   }
 });
 
+router.get("/courses", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const courses = await Course.find()
+      .populate("professor", "first_name last_name email employee_id")
+      .sort({ course_code: 1 });
+
+    res.json(courses);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load courses", error: err.message });
+  }
+});
+
+router.delete("/courses/:id", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    if (!course) return res.status(404).json({ message: "Course not found" });
+
+    await deleteCourseCascade(course._id);
+
+    res.json({ message: "Course deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete course", error: err.message });
+  }
+});
+
 router.post("/timetable", authenticateJWT, isAdmin, async (req, res) => {
   try {
     const { course, day_of_week, start_time, end_time, room_no } = req.body;
@@ -185,6 +249,33 @@ router.patch("/timetable/:id", authenticateJWT, isAdmin, async (req, res) => {
     res.json({ message: "Timetable updated", timetable: updated });
   } catch (err) {
     res.status(500).json({ message: "Error updating timetable", error: err.message });
+  }
+});
+
+router.get("/timetable", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const timetable = await Timetable.find()
+      .populate({
+        path: "course",
+        select: "course_code course_name professor",
+        populate: { path: "professor", select: "first_name last_name" }
+      })
+      .sort({ day_of_week: 1, start_time: 1 });
+
+    res.json(timetable);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load timetable", error: err.message });
+  }
+});
+
+router.delete("/timetable/:id", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const deleted = await Timetable.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Timetable not found" });
+
+    res.json({ message: "Timetable deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete timetable", error: err.message });
   }
 });
 

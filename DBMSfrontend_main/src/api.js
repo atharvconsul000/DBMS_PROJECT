@@ -67,6 +67,14 @@ export async function adminCreateStudent(payload) {
   return request('/admin/students', { method: 'POST', body: payload });
 }
 
+export async function adminUpdateUser(userId, payload) {
+  return request(`/admin/users/${userId}`, { method: 'PATCH', body: payload });
+}
+
+export async function adminDeleteUser(userId) {
+  return request(`/admin/users/${userId}`, { method: 'DELETE' });
+}
+
 export async function adminCreateProf(payload) {
   return request('/admin/profs', { method: 'POST', body: payload });
 }
@@ -75,8 +83,32 @@ export async function adminCreateCourse(payload) {
   return request('/admin/courses', { method: 'POST', body: payload });
 }
 
+export async function adminFetchCourses() {
+  return request('/admin/courses');
+}
+
+export async function adminDeleteCourse(courseId) {
+  return request(`/admin/courses/${courseId}`, { method: 'DELETE' });
+}
+
+export async function adminUpdateCourse(courseId, payload) {
+  return request(`/admin/courses/${courseId}`, { method: 'PATCH', body: payload });
+}
+
 export async function adminCreateTimetable(payload) {
   return request('/admin/timetable', { method: 'POST', body: payload });
+}
+
+export async function adminFetchTimetable() {
+  return request('/admin/timetable');
+}
+
+export async function adminUpdateTimetable(timetableId, payload) {
+  return request(`/admin/timetable/${timetableId}`, { method: 'PATCH', body: payload });
+}
+
+export async function adminDeleteTimetable(timetableId) {
+  return request(`/admin/timetable/${timetableId}`, { method: 'DELETE' });
 }
 
 export async function adminFetchUsers() {

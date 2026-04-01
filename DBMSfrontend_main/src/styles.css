@@ -114,6 +114,16 @@ textarea {
   background: #475569;
 }
 
+.btn-danger {
+  background: var(--danger);
+}
+
+.action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
