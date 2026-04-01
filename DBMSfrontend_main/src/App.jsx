@@ -3,7 +3,7 @@ import { clearToken, getSavedToken, saveToken } from './api.js';
 import LoginForm from './components/LoginForm.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import ProfDashboard from './components/ProfDashboard.jsx';
-import StudentDashboard from './components/StudentDashboard.jsx';
+import StudentPortal from './components/StudentPortal.jsx';
 
 const ROLE_NAMES = ['admin', 'prof', 'student'];
 
@@ -39,7 +39,7 @@ function App() {
     <div className="app-shell">
       <header className="app-header">
         <h1>Academic Portal</h1>
-        <p>React frontend for DBMS backend</p>
+        <p>University administration and student services portal</p>
       </header>
 
       {message && <div className="toast">{message}</div>}
@@ -53,7 +53,7 @@ function App() {
             onError={(error) => setMessage(error)}
           />
           <div className="notice">
-            Use one of the backend roles: admin, prof, student. The frontend runs on <strong>http://localhost:5500</strong> and talks to the backend on <strong>http://localhost:3000</strong> unless you override <code>VITE_API_URL</code>.
+            Sign in with your assigned role to manage academics, records, and student services.
           </div>
         </section>
       ) : (
@@ -65,12 +65,12 @@ function App() {
 
           {role === 'admin' && <AdminDashboard onMessage={setMessage} />}
           {role === 'prof' && <ProfDashboard onMessage={setMessage} />}
-          {role === 'student' && <StudentDashboard onMessage={setMessage} />}
+          {role === 'student' && <StudentPortal onMessage={setMessage} />}
         </section>
       )}
 
       <footer className="app-footer">
-        <small>Frontend built for the DBMS backend API.</small>
+        <small>Official academic management system.</small>
       </footer>
     </div>
   );

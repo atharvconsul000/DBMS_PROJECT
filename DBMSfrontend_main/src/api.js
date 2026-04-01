@@ -36,6 +36,25 @@ export async function request(path, options = {}) {
   return data;
 }
 
+export async function requestFile(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...authHeaders(),
+      ...(options.headers || {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    method: options.method || 'GET',
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Request failed');
+  }
+
+  return response.blob();
+}
+
 export async function signIn(role, payload) {
   return request(`/${role}/signin`, { method: 'POST', body: payload });
 }
@@ -62,6 +81,18 @@ export async function adminCreateTimetable(payload) {
 
 export async function adminFetchUsers() {
   return request('/admin/users');
+}
+
+export async function adminGenerateFees(payload) {
+  return request('/admin/fees/generate', { method: 'POST', body: payload });
+}
+
+export async function adminFetchFees() {
+  return request('/admin/fees');
+}
+
+export async function adminFulfillFeeDemand(feeId, payload = {}) {
+  return request(`/admin/fees/${feeId}/fulfill`, { method: 'PATCH', body: payload });
 }
 
 export async function profFetchStudents() {
@@ -102,6 +133,22 @@ export async function studentFetchTimetable() {
 
 export async function studentRegisterCourse(courseId) {
   return request(`/student/register-course/${courseId}`, { method: 'POST' });
+}
+
+export async function studentFetchFees() {
+  return request('/student/my-fees');
+}
+
+export async function studentFulfillFeeDemand(feeId) {
+  return request(`/student/fees/${feeId}/fulfill`, { method: 'PATCH' });
+}
+
+export async function studentDownloadFeeReceipt(feeId) {
+  return requestFile(`/student/fees/${feeId}/receipt`);
+}
+
+export async function studentGenerateResume(payload) {
+  return requestFile('/student/resume', { method: 'POST', body: payload });
 }
 
 export function saveToken(token) {

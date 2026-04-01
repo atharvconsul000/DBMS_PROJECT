@@ -168,8 +168,96 @@ textarea {
   font-size: 0.95rem;
 }
 
+.student-portal {
+  display: grid;
+  gap: 20px;
+}
+
+.page-tabs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-tab {
+  border: 1px solid var(--border);
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+}
+
+.page-tab-active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.calendar-day {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.calendar-day-header {
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-day-body {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  min-height: 120px;
+}
+
+.calendar-event {
+  background: var(--surface);
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid var(--primary);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.calendar-time {
+  font-weight: 700;
+  color: var(--primary-strong);
+}
+
+.calendar-course {
+  font-weight: 700;
+}
+
+.calendar-course-name,
+.calendar-room,
+.calendar-empty {
+  color: var(--muted);
+}
+
 @media (min-width: 860px) {
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .calendar-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .calendar-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

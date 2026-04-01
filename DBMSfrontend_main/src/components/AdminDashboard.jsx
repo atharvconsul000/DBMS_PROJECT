@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
   adminCreateCourse,
+  adminFetchFees,
+  adminFulfillFeeDemand,
   adminCreateProf,
   adminCreateStudent,
   adminCreateTimetable,
+  adminGenerateFees,
   adminFetchUsers,
 } from '../api.js';
 
 function AdminDashboard({ onMessage }) {
   const [users, setUsers] = useState([]);
+  const [fees, setFees] = useState([]);
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
   const profs = users.filter((user) => user.role === 'prof');
@@ -19,8 +23,12 @@ function AdminDashboard({ onMessage }) {
 
   async function loadUsers() {
     try {
-      const data = await adminFetchUsers();
-      setUsers(data);
+      const [usersData, feesData] = await Promise.all([
+        adminFetchUsers(),
+        adminFetchFees(),
+      ]);
+      setUsers(usersData);
+      setFees(feesData);
     } catch (err) {
       onMessage(err.message);
     }
@@ -64,11 +72,34 @@ function AdminDashboard({ onMessage }) {
           end_time: form.timetableEnd,
           room_no: form.timetableRoom,
         });
+      } else if (action === 'fees') {
+        result = await adminGenerateFees({
+          semester: Number(form.feeSemester),
+          academic_year: form.feeAcademicYear,
+          amount: Number(form.feeAmount),
+          due_date: form.feeDueDate,
+          remarks: form.feeRemarks,
+        });
       }
 
       onMessage(result.message || 'Saved successfully');
       await loadUsers();
       setForm({});
+    } catch (err) {
+      onMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleFulfillFee(feeId) {
+    setBusy(true);
+    onMessage('');
+
+    try {
+      const result = await adminFulfillFeeDemand(feeId);
+      onMessage(result.message || 'Fee fulfilled');
+      await loadUsers();
     } catch (err) {
       onMessage(err.message);
     } finally {
@@ -131,6 +162,16 @@ function AdminDashboard({ onMessage }) {
           <input placeholder="Room no" value={form.timetableRoom || ''} onChange={(e) => setForm({ ...form, timetableRoom: e.target.value })} />
           <button className="btn btn-primary" type="submit" disabled={busy}>Create timetable</button>
         </form>
+
+        <form className="form-stack" onSubmit={(event) => handleSubmit(event, 'fees')}>
+          <h4>Generate semester fee demand</h4>
+          <input placeholder="Semester" type="number" min="1" value={form.feeSemester || ''} onChange={(e) => setForm({ ...form, feeSemester: e.target.value })} required />
+          <input placeholder="Academic year (e.g. 2025-26)" value={form.feeAcademicYear || ''} onChange={(e) => setForm({ ...form, feeAcademicYear: e.target.value })} required />
+          <input placeholder="Amount" type="number" min="0" value={form.feeAmount || ''} onChange={(e) => setForm({ ...form, feeAmount: e.target.value })} required />
+          <input type="date" value={form.feeDueDate || ''} onChange={(e) => setForm({ ...form, feeDueDate: e.target.value })} required />
+          <textarea placeholder="Remarks" value={form.feeRemarks || ''} onChange={(e) => setForm({ ...form, feeRemarks: e.target.value })} />
+          <button className="btn btn-primary" type="submit" disabled={busy}>Generate for all students</button>
+        </form>
       </div>
 
       <div className="card full-width">
@@ -159,6 +200,55 @@ function AdminDashboard({ onMessage }) {
                   <td>{user.role}</td>
                   <td>{user.first_name} {user.last_name}</td>
                   <td>{user.role === 'student' ? user.roll_no || 'N/A' : user.employee_id || 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card full-width">
+        <h3>Generated fee demands</h3>
+        {fees.length === 0 ? (
+          <p>No fee demands generated yet.</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Demand No.</th>
+                <th>Student</th>
+                <th>Semester</th>
+                <th>Academic Year</th>
+                <th>Amount</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fees.map((fee) => (
+                <tr key={fee._id}>
+                  <td>{fee.demand_number}</td>
+                  <td>{fee.student?.first_name} {fee.student?.last_name}</td>
+                  <td>{fee.semester}</td>
+                  <td>{fee.academic_year}</td>
+                  <td>INR {Number(fee.amount).toFixed(2)}</td>
+                  <td>{new Date(fee.due_date).toLocaleDateString()}</td>
+                  <td>{fee.status}</td>
+                  <td>
+                    {fee.status === 'paid' ? (
+                      'Fulfilled'
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={busy}
+                        onClick={() => handleFulfillFee(fee._id)}
+                      >
+                        Fulfill demand
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

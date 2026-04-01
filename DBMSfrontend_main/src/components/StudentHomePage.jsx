@@ -1,27 +1,25 @@
 import { useEffect, useState } from 'react';
 import {
-  studentFetchAvailableCourses,
-  studentFetchAnnouncements,
-  studentFetchCourses,
   studentDownloadFeeReceipt,
+  studentFetchAnnouncements,
+  studentFetchAvailableCourses,
+  studentFetchCourses,
   studentFetchFees,
-  studentFulfillFeeDemand,
   studentFetchProfile,
-  studentFetchTimetable,
+  studentFulfillFeeDemand,
   studentRegisterCourse,
 } from '../api.js';
 
-const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-function StudentDashboard({ onMessage }) {
+function StudentHomePage({ onMessage }) {
   const [profile, setProfile] = useState(null);
   const [courses, setCourses] = useState([]);
   const [availableCourses, setAvailableCourses] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
-  const [timetable, setTimetable] = useState([]);
   const [fees, setFees] = useState([]);
   const [registrationId, setRegistrationId] = useState('');
   const [busy, setBusy] = useState(false);
+  const pendingFees = fees.filter((fee) => fee.status !== 'paid');
+  const paidFees = fees.filter((fee) => fee.status === 'paid');
 
   useEffect(() => {
     loadAll();
@@ -29,19 +27,17 @@ function StudentDashboard({ onMessage }) {
 
   async function loadAll() {
     try {
-      const [profileData, coursesData, availableCoursesData, announcementsData, timetableData, feeData] = await Promise.all([
+      const [profileData, coursesData, availableCoursesData, announcementsData, feeData] = await Promise.all([
         studentFetchProfile(),
         studentFetchCourses(),
         studentFetchAvailableCourses(),
         studentFetchAnnouncements(),
-        studentFetchTimetable(),
         studentFetchFees(),
       ]);
       setProfile(profileData);
       setCourses(coursesData);
       setAvailableCourses(availableCoursesData);
       setAnnouncements(announcementsData);
-      setTimetable(timetableData);
       setFees(feeData);
     } catch (err) {
       onMessage(err.message);
@@ -57,7 +53,7 @@ function StudentDashboard({ onMessage }) {
       const result = await studentRegisterCourse(registrationId);
       onMessage(result.message || 'Course registered');
       setRegistrationId('');
-      loadAll();
+      await loadAll();
     } catch (err) {
       onMessage(err.message);
     } finally {
@@ -98,13 +94,6 @@ function StudentDashboard({ onMessage }) {
     }
   }
 
-  const timetableByDay = WEEK_DAYS.reduce((acc, day) => {
-    acc[day] = timetable
-      .filter((item) => item.day_of_week === day)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
-    return acc;
-  }, {});
-
   return (
     <div className="dashboard-grid">
       <div className="card">
@@ -116,18 +105,14 @@ function StudentDashboard({ onMessage }) {
             <p>Roll No: {profile.roll_no || 'N/A'}</p>
           </div>
         ) : (
-          <p>Loading profile…</p>
+          <p>Loading profile...</p>
         )}
       </div>
 
       <div className="card">
         <h3>Register for a course</h3>
         <form className="form-stack" onSubmit={handleRegister}>
-          <select
-            value={registrationId}
-            onChange={(e) => setRegistrationId(e.target.value)}
-            required
-          >
+          <select value={registrationId} onChange={(e) => setRegistrationId(e.target.value)} required>
             <option value="">Select a course</option>
             {availableCourses.map((course) => (
               <option key={course._id} value={course._id}>
@@ -152,7 +137,7 @@ function StudentDashboard({ onMessage }) {
           <ul className="item-list">
             {courses.map((item) => (
               <li key={item._id}>
-                <strong>{item.course.course_code}</strong> — {item.course.course_name}
+                <strong>{item.course.course_code}</strong> - {item.course.course_name}
                 <div>Professor: {item.course.professor.first_name} {item.course.professor.last_name}</div>
                 <div>Course ID: {item.course._id}</div>
                 <div>Credits: {item.course.credits}</div>
@@ -182,7 +167,7 @@ function StudentDashboard({ onMessage }) {
 
       <div className="card full-width">
         <h3>Pending fee demands</h3>
-        {fees.length === 0 ? (
+        {pendingFees.length === 0 ? (
           <p>No pending fee records found.</p>
         ) : (
           <table className="data-table">
@@ -195,11 +180,10 @@ function StudentDashboard({ onMessage }) {
                 <th>Due Date</th>
                 <th>Status</th>
                 <th>Fulfill</th>
-                <th>Receipt</th>
               </tr>
             </thead>
             <tbody>
-              {fees.map((fee) => (
+              {pendingFees.map((fee) => (
                 <tr key={fee._id}>
                   <td>{fee.demand_number}</td>
                   <td>{fee.semester}</td>
@@ -208,22 +192,8 @@ function StudentDashboard({ onMessage }) {
                   <td>{new Date(fee.due_date).toLocaleDateString()}</td>
                   <td>{fee.status}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={busy}
-                      onClick={() => handleFulfillFee(fee._id)}
-                    >
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => handleFulfillFee(fee._id)}>
                       Fulfill demand
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => handleReceiptDownload(fee._id, fee.demand_number)}
-                    >
-                      Download PDF
                     </button>
                   </td>
                 </tr>
@@ -234,35 +204,44 @@ function StudentDashboard({ onMessage }) {
       </div>
 
       <div className="card full-width">
-        <h3>Timetable</h3>
-        {timetable.length === 0 ? (
-          <p>No timetable items found.</p>
+        <h3>Paid fee receipts</h3>
+        {paidFees.length === 0 ? (
+          <p>No paid fee receipts available yet.</p>
         ) : (
-          <div className="calendar-grid">
-            {WEEK_DAYS.map((day) => (
-              <section key={day} className="calendar-day">
-                <header className="calendar-day-header">{day}</header>
-                <div className="calendar-day-body">
-                  {timetableByDay[day].length === 0 ? (
-                    <p className="calendar-empty">No classes</p>
-                  ) : (
-                    timetableByDay[day].map((item) => (
-                      <article key={item._id} className="calendar-event">
-                        <div className="calendar-time">{item.start_time} - {item.end_time}</div>
-                        <div className="calendar-course">{item.course.course_code}</div>
-                        <div className="calendar-course-name">{item.course.course_name}</div>
-                        <div className="calendar-room">Room: {item.room_no || 'N/A'}</div>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </section>
-            ))}
-          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Demand No.</th>
+                <th>Semester</th>
+                <th>Academic Year</th>
+                <th>Amount</th>
+                <th>Paid On</th>
+                <th>Status</th>
+                <th>Receipt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paidFees.map((fee) => (
+                <tr key={fee._id}>
+                  <td>{fee.demand_number}</td>
+                  <td>{fee.semester}</td>
+                  <td>{fee.academic_year}</td>
+                  <td>INR {Number(fee.amount).toFixed(2)}</td>
+                  <td>{fee.paid_at ? new Date(fee.paid_at).toLocaleDateString() : 'N/A'}</td>
+                  <td>{fee.status}</td>
+                  <td>
+                    <button type="button" className="btn btn-secondary" onClick={() => handleReceiptDownload(fee._id, fee.demand_number)}>
+                      Download receipt
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
   );
 }
 
-export default StudentDashboard;
+export default StudentHomePage;

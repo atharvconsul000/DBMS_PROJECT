@@ -61,11 +61,28 @@ const AnnouncementSchema = new mongoose.Schema({
     professor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
+const FeeSchema = new mongoose.Schema({
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    semester: { type: Number, required: true, min: 1 },
+    academic_year: { type: String, required: true, trim: true },
+    amount: { type: Number, required: true, min: 0 },
+    due_date: { type: Date, required: true },
+    status: { type: String, enum: ['pending', 'paid', 'overdue'], default: 'pending' },
+    demand_number: { type: String, required: true, unique: true, trim: true },
+    remarks: { type: String, trim: true },
+    generated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    paid_at: { type: Date },
+    payment_reference: { type: String, trim: true },
+    fulfilled_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { timestamps: true });
+FeeSchema.index({ student: 1, semester: 1, academic_year: 1 }, { unique: true });
+
 const User = mongoose.model('User', UserSchema);
 const Course = mongoose.model('Course', CourseSchema);
 const TakenCourse = mongoose.model('TakenCourse', TakenCourseSchema);
 const Timetable = mongoose.model('Timetable', TimetableSchema);
 const Announcement = mongoose.model('Announcement', AnnouncementSchema);
+const Fee = mongoose.model('Fee', FeeSchema);
 
 module.exports = {
     User,
@@ -73,5 +90,6 @@ module.exports = {
     TakenCourse,
     Timetable,
     Announcement,
+    Fee,
     RBAC_PERMISSIONS
 };

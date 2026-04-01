@@ -2,10 +2,16 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { User, Course, Timetable } = require("../db/index");
+const { User, Course, Timetable, Fee } = require("../db/index");
 const authenticateJWT = require("../middleware/auth");
 const isAdmin = require("../middleware/admin");
 require("dotenv").config();
+
+function buildDemandNumber(student, semester, academicYear) {
+  const studentRef = student.roll_no || String(student._id).slice(-6).toUpperCase();
+  const yearRef = academicYear.replace(/\s+/g, "").toUpperCase();
+  return `FEE-${yearRef}-SEM${semester}-${studentRef}`;
+}
 
 router.post("/signup", async (req, res) => {
   try {
@@ -179,6 +185,92 @@ router.patch("/timetable/:id", authenticateJWT, isAdmin, async (req, res) => {
     res.json({ message: "Timetable updated", timetable: updated });
   } catch (err) {
     res.status(500).json({ message: "Error updating timetable", error: err.message });
+  }
+});
+
+router.post("/fees/generate", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const { semester, academic_year, amount, due_date, remarks } = req.body;
+
+    if (!semester || !academic_year || amount === undefined || !due_date) {
+      return res.status(400).json({ message: "semester, academic_year, amount and due_date are required" });
+    }
+
+    const students = await User.find({ role: "student" }).select("_id roll_no first_name last_name");
+    if (students.length === 0) {
+      return res.status(404).json({ message: "No students found" });
+    }
+
+    const existingFees = await Fee.find({
+      student: { $in: students.map((student) => student._id) },
+      semester,
+      academic_year
+    }).select("student");
+
+    const existingStudentIds = new Set(existingFees.map((fee) => String(fee.student)));
+    const newFees = students
+      .filter((student) => !existingStudentIds.has(String(student._id)))
+      .map((student) => ({
+        student: student._id,
+        semester,
+        academic_year,
+        amount,
+        due_date,
+        remarks,
+        generated_by: req.user.id,
+        demand_number: buildDemandNumber(student, semester, academic_year)
+      }));
+
+    if (newFees.length === 0) {
+      return res.json({ message: "Fee demand already exists for all students in this semester", createdCount: 0 });
+    }
+
+    await Fee.insertMany(newFees, { ordered: false });
+
+    res.status(201).json({
+      message: `Fee demand generated for ${newFees.length} students`,
+      createdCount: newFees.length,
+      skippedCount: students.length - newFees.length
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to generate fee demand", error: err.message });
+  }
+});
+
+router.get("/fees", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const fees = await Fee.find()
+      .populate("student", "first_name last_name email roll_no")
+      .sort({ createdAt: -1 });
+
+    res.json(fees);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load fee records", error: err.message });
+  }
+});
+
+router.patch("/fees/:feeId/fulfill", authenticateJWT, isAdmin, async (req, res) => {
+  try {
+    const paymentReference = req.body.payment_reference?.trim() || `ADMIN-${Date.now()}`;
+    const fee = await Fee.findById(req.params.feeId);
+
+    if (!fee) {
+      return res.status(404).json({ message: "Fee record not found" });
+    }
+
+    if (fee.status === "paid") {
+      return res.status(400).json({ message: "Fee demand is already fulfilled" });
+    }
+
+    fee.status = "paid";
+    fee.paid_at = new Date();
+    fee.payment_reference = paymentReference;
+    fee.fulfilled_by = req.user.id;
+    await fee.save();
+
+    res.json({ message: "Fee demand fulfilled", fee });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fulfill fee demand", error: err.message });
   }
 });
 
